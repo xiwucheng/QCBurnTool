@@ -6,7 +6,6 @@
 #include "QCBurnTool.h"
 #include "QCBurnToolDlg.h"
 #include "afxdialogex.h"
-#include "UsbInfo.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -67,7 +66,7 @@ BOOL CQCBurnToolDlg::OnInitDialog()
 	m_brnDlg.MoveWindow(&rcArea);
 	m_mdDlg.MoveWindow(&rcArea);
 	m_brnDlg.ShowWindow(SW_SHOW);
-	getDevices();
+	//getDevices();
 	return TRUE;  // 除非将焦点设置到控件，否则返回 TRUE
 }
 

@@ -182,10 +182,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BurnDlg.h" />
+    <ClInclude Include="DragEdit.h" />
     <ClInclude Include="MeidDlg.h" />
     <ClInclude Include="QCBurnTool.h" />
     <ClInclude Include="QCBurnToolDlg.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="ShellCmd.h" />
     <ClInclude Include="StaticEx.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -193,9 +195,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="BurnDlg.cpp" />
+    <ClCompile Include="DragEdit.cpp" />
     <ClCompile Include="MeidDlg.cpp" />
     <ClCompile Include="QCBurnTool.cpp" />
     <ClCompile Include="QCBurnToolDlg.cpp" />
+    <ClCompile Include="ShellCmd.cpp" />
     <ClCompile Include="StaticEx.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

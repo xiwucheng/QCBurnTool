@@ -23,13 +23,20 @@ void getDevices()
 		WCHAR did[1024];
 		WCHAR locid[1024];
 		WCHAR locdesc[1024];
+		WCHAR friendName[1024];
 		//get device description information
 		if (!SetupDiGetDeviceInstanceId(info, &DeviceInfoData, (PTSTR)did, buffersize, &req_bufsize))
 			continue;
-		if (!SetupDiGetDeviceRegistryPropertyW(info, &DeviceInfoData, SPDRP_LOCATION_PATHS, &DataT, (LPBYTE)locid, buffersize, &req_bufsize))
+		if (!SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_LOCATION_PATHS, &DataT, (LPBYTE)locid, buffersize, &req_bufsize))
 			continue;
 
-		if (!SetupDiGetDeviceRegistryPropertyW(info, &DeviceInfoData, SPDRP_LOCATION_INFORMATION, &DataT, (LPBYTE)locdesc, buffersize, &req_bufsize))
+		if (!SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_DEVICEDESC, &DataT, (LPBYTE)locdesc, buffersize, &req_bufsize))
+			continue;
+
+		if (!SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_LOCATION_INFORMATION, &DataT, (LPBYTE)locdesc, buffersize, &req_bufsize))
+			continue;
+
+		if (!SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_FRIENDLYNAME, &DataT, (LPBYTE)friendName, buffersize, &req_bufsize))
 			continue;
 		req_bufsize=0;
 	}

@@ -45,6 +45,12 @@
     <ClInclude Include="UsbInfo.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="ShellCmd.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+    <ClInclude Include="DragEdit.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="QCBurnTool.cpp">
@@ -66,6 +72,12 @@
       <Filter>源文件</Filter>
     </ClCompile>
     <ClCompile Include="UsbInfo.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="ShellCmd.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="DragEdit.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
   </ItemGroup>

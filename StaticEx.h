@@ -12,9 +12,12 @@ public:
 	int SetFrontColor(COLORREF nColor);
 	int SetTextColor(COLORREF nColor);
 	int SetType(int nType);
+	int SetFontSize(int nSize);
 private:
 	COLORREF m_clrText;
 	COLORREF m_clrBk, m_clrFront;
 	int m_nPos,m_nType;
+	LOGFONT m_lf;
+	HFONT m_hFont;
 };
 

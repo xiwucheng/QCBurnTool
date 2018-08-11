@@ -53,3 +53,6 @@
 
 
 #include "StaticEx.h"
+#include "DragEdit.h"
+#include "UsbInfo.h"
+#include "ShellCmd.h"
