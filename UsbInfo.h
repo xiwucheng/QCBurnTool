@@ -1,18 +1,13 @@
 #pragma once
 
 #include "resource.h"
-#include <stdio.h>
-#include <windows.h>
 #include <SetupAPI.h>
-#include <iostream>
 #include <Usbiodef.h>
 #include <Usbioctl.h>
 #include <devguid.h>
 #include <winioctl.h>
 #include <INITGUID.h>
 #include <Dbt.h>
-#include <map>
-#include <wchar.h>
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "setupapi.lib")
 

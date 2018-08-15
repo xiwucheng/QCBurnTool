@@ -5,8 +5,20 @@
 #include "QCBurnTool.h"
 #include "BurnDlg.h"
 #include "afxdialogex.h"
-#include <Dbt.h>
 
+#include <SetupAPI.h>
+#include <INITGUID.h>
+#include <Dbt.h>
+#pragma comment(lib, "Winmm.lib")
+#pragma comment(lib, "setupapi.lib")
+
+
+
+DEFINE_GUID(GUID_DEVINTERFACE_USB_DEVICE, 0xA5DCBF10L, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
+#define GUID_CLASS_USB_DEVICE		GUID_DEVINTERFACE_USB_DEVICE  
+
+DEFINE_GUID(GUID_DEVINTERFACE_USB_HUB, 0xf18a0e88, 0xc30c, 0x11d0, 0x88, 0x15, 0x00, 0xa0, 0xc9, 0x06, 0xbe, 0xd8);
+#define GUID_CLASS_USB_HUB		GUID_DEVINTERFACE_USB_HUB
 
 // CBurnDlg 对话框
 
@@ -17,6 +29,7 @@ CBurnDlg::CBurnDlg(CWnd* pParent /*=NULL*/)
 {
 	m_bIsRunning = FALSE;
 	m_nCanStop = 0;
+	memset(m_DevPort, 0, sizeof(m_DevPort));
 }
 
 CBurnDlg::~CBurnDlg()
@@ -72,7 +85,7 @@ BOOL CBurnDlg::OnInitDialog()
 
 	//m_sOK.SetWindowText(TEXT("9999"));
 	m_fwPath.SubclassDlgItem(IDC_FWPATH,this);
-	SetDlgItemText(IDC_FWPATH, TEXT("可通过直接拖拽固件包所在目录到此处来快速选择！"));
+	//SetDlgItemText(IDC_FWPATH, TEXT("可通过直接拖拽固件包所在目录到此处来快速选择！"));
 	//SetTimer(1, 1000, 0);
 	//CEdit* p = (CEdit*)GetDlgItem(IDC_FWPATH);
 	//p->ShowBalloonTip(TEXT("固件包路径提示"), TEXT("可通过浏览按钮或直接拖拽固件包所在目录来快速选择！"), TTI_INFO);
@@ -82,7 +95,9 @@ BOOL CBurnDlg::OnInitDialog()
 	dbi.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
 	dbi.dbcc_reserved = 0;
 	dbi.dbcc_classguid = GUID_CLASS_USB_DEVICE;
-
+	WCHAR *com = L"Communications Port (COM21)";
+	WCHAR *p = wcsstr(com, L"COM");
+	EnumDevices();
 	m_hDevNotify = RegisterDeviceNotification(m_hWnd, &dbi, DEVICE_NOTIFY_WINDOW_HANDLE);//DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
@@ -160,8 +175,6 @@ void CBurnDlg::OnTimer(UINT_PTR nIDEvent)
 	if (nIDEvent == 1)
 	{
 		KillTimer(1);
-		CEdit* p = (CEdit*)GetDlgItem(IDC_FWPATH);
-		p->ShowBalloonTip(TEXT("固件包路径提示"), TEXT("可通过浏览按钮或直接拖拽固件包所在目录来快速选择！"), TTI_INFO);
 	}
 
 	CDialogEx::OnTimer(nIDEvent);
@@ -190,7 +203,7 @@ BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 				{
 					OutputDebugString(TEXT("MSM8953 EDL Device  ----  Removed\n"));
 				}
-				//getDevices();
+				EnumDevices();
 			}
 		}
 		break;
@@ -320,4 +333,56 @@ wstring s2ws(const string &s)
 	delete[] _dest;
 	setlocale(LC_ALL, curLocale.c_str());
 	return result;
+}
+
+int CBurnDlg::EnumDevices()
+{
+	//LPGUID lpGuid = (LPGUID)&GUID_CLASS_USB_HUB;//
+	LPGUID lpGuid = (LPGUID)&GUID_CLASS_USB_DEVICE;//
+	int INTERFACE_DETAIL_SIZE = 1024;
+	int nCount = 0;
+	HDEVINFO info = SetupDiGetClassDevs(lpGuid, NULL, NULL, DIGCF_PRESENT | DIGCF_INTERFACEDEVICE);
+
+	//enumerate device information  
+	DWORD required_size = 0;
+	int i;
+	SP_DEVINFO_DATA DeviceInfoData = { sizeof(DeviceInfoData) };
+
+	DWORD DataT;
+	DWORD buffersize = 1024;
+	DWORD req_bufsize = 0;
+
+	for (i = 0; SetupDiEnumDeviceInfo(info, i, &DeviceInfoData); i++)
+	{
+		WCHAR did[128] = { 0 };
+		WCHAR locinfo[128] = { 0 };
+		WCHAR friendName[128] = { 0 };
+		WCHAR *subStr = 0;
+		int com_port = 0;
+		//get device description information
+		SetupDiGetDeviceInstanceId(info, &DeviceInfoData, (PTSTR)did, buffersize, &req_bufsize);
+		SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_LOCATION_INFORMATION, &DataT, (LPBYTE)locinfo, buffersize, &req_bufsize);
+		SetupDiGetDeviceRegistryProperty(info, &DeviceInfoData, SPDRP_FRIENDLYNAME, &DataT, (LPBYTE)friendName, buffersize, &req_bufsize);
+		req_bufsize = 0;
+
+		subStr = wcsstr(friendName, TEXT("COM"));
+		if (subStr)
+		{
+			swscanf(subStr, TEXT("COM%d"), &com_port);
+		}
+
+		for (int j = 0; j < 8; j++)
+		{
+			if (!m_DevPort[j].valid)
+			{
+				swscanf_s(locinfo, TEXT("Port_#%04d.Hub_#%04d"), &m_DevPort[j].usb, &m_DevPort[j].hub);
+				m_DevPort[j].valid = 1;
+				m_DevPort[j].port = com_port;
+				break;
+			}
+		}
+	}
+
+	SetupDiDestroyDeviceInfoList(info);
+	return 0;
 }

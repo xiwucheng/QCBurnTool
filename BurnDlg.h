@@ -7,8 +7,11 @@ wstring s2ws(const string &s);
 
 typedef struct
 {
-	char szPort[8];
+	int port;//COMxxx
+	int usb;//USB port number
+	int hub;//HUB number
 	int id;
+	int valid;
 }DevPort, *PDevPort;
 
 class CBurnDlg : public CDialogEx
@@ -34,6 +37,7 @@ protected:
 	HDEVNOTIFY m_hDevNotify;
 	BOOL      m_bIsRunning;
 	UINT      m_nCanStop;
+	DevPort   m_DevPort[8];
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV Ö§³Ö
@@ -57,4 +61,6 @@ private:
 	static UINT Dev7Monitor(LPVOID lpv);
 	static UINT Dev8Monitor(LPVOID lpv);
 
+public:
+	int EnumDevices();
 };
