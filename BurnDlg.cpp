@@ -30,6 +30,7 @@ CBurnDlg::CBurnDlg(CWnd* pParent /*=NULL*/)
 	m_bIsRunning = FALSE;
 	m_nCanStop = 0;
 	memset(m_DevPort, 0, sizeof(m_DevPort));
+	m_nTotal = m_nSuccess = m_nFailure = 0;
 }
 
 CBurnDlg::~CBurnDlg()
@@ -84,6 +85,13 @@ BOOL CBurnDlg::OnInitDialog()
 	m_sTotal.SetType(1);
 	m_sTotal.SetFontSize(20);
 	m_sTotal.SetBkColor(RGB(200, 100, 0));
+	CString strTmp;
+	strTmp.Format(TEXT("%06d"), m_nTotal);
+	m_sTotal.SetWindowText(strTmp);
+	strTmp.Format(TEXT("%06d"), m_nSuccess);
+	m_sOK.SetWindowText(strTmp);
+	strTmp.Format(TEXT("%06d"), m_nFailure);
+	m_sNG.SetWindowText(strTmp);
 
 	//m_sOK.SetWindowText(TEXT("9999"));
 	m_fwPath.SubclassDlgItem(IDC_FWPATH,this);
@@ -277,12 +285,24 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 		m_Dev[lParam].SetType(1);
 		m_Dev[lParam].SetBkColor(RGB(200, 0, 0));
 		m_Dev[lParam].SetWindowText(TEXT("ÉÕÂ¼Ê§°Ü"));
+		m_nFailure++;
+		m_nTotal++;
+		strInfo.Format(TEXT("%06d"), m_nTotal);
+		m_sTotal.SetWindowText(strInfo);
+		strInfo.Format(TEXT("%06d"), m_nFailure);
+		m_sNG.SetWindowText(strInfo);
 	}
 	else if (wParam == 3)//ÉÕÂ¼Íê³É
 	{
 		m_Dev[lParam].SetType(1);
 		m_Dev[lParam].SetBkColor(RGB(0, 200, 0));
 		m_Dev[lParam].SetWindowText(TEXT("ÉÕÂ¼³É¹¦"));
+		m_nSuccess++;
+		m_nTotal++;
+		strInfo.Format(TEXT("%06d"), m_nTotal);
+		m_sTotal.SetWindowText(strInfo);
+		strInfo.Format(TEXT("%06d"), m_nSuccess);
+		m_sOK.SetWindowText(strInfo);
 	}
 	return 0;
 }
@@ -633,4 +653,10 @@ BOOL CBurnDlg::IsDeviceRegistered(int hubport, int usbport)
 		}
 	}
 	return FALSE;
+}
+
+
+BOOL CBurnDlg::IsAllowClose()
+{
+	return !m_bIsRunning;
 }

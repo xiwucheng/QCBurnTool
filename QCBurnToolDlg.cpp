@@ -11,7 +11,7 @@
 #define new DEBUG_NEW
 #endif
 
-
+#define WM_BURNINFO (WM_USER+103)
 // CQCBurnToolDlg 对话框
 
 
@@ -32,6 +32,8 @@ BEGIN_MESSAGE_MAP(CQCBurnToolDlg, CDialogEx)
 	ON_WM_QUERYDRAGICON()
 	ON_WM_TIMER()
 	ON_NOTIFY(TCN_SELCHANGE, IDC_TAB1, &CQCBurnToolDlg::OnTcnSelchangeTab1)
+	ON_WM_CLOSE()
+	ON_MESSAGE(WM_BURNINFO,OnBurnInfo)
 END_MESSAGE_MAP()
 
 
@@ -130,4 +132,34 @@ void CQCBurnToolDlg::OnTcnSelchangeTab1(NMHDR *pNMHDR, LRESULT *pResult)
 		m_mdDlg.ShowWindow(SW_SHOW);
 		m_brnDlg.ShowWindow(SW_HIDE);
 	}
+}
+
+
+BOOL CQCBurnToolDlg::PreTranslateMessage(MSG* pMsg)
+{
+	// TODO: 在此添加专用代码和/或调用基类
+	if (pMsg->message == WM_KEYDOWN && (pMsg->wParam == VK_RETURN || pMsg->wParam == VK_ESCAPE))
+	{
+		return TRUE;
+	}
+	return CDialogEx::PreTranslateMessage(pMsg);
+}
+
+
+void CQCBurnToolDlg::OnClose()
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	if (!m_brnDlg.IsAllowClose())
+	{
+		MessageBox(TEXT("无法关闭当前工具，请停止量产操作后再退出！"), TEXT("非法操作"), MB_ICONERROR);
+		return;
+	}
+	CDialogEx::OnClose();
+}
+
+LRESULT CQCBurnToolDlg::OnBurnInfo(WPARAM wParam, LPARAM lParam)
+{
+	LPTSTR strInfo = (LPTSTR)wParam;
+	SetDlgItemText(IDC_INFO,strInfo);
+	return TRUE;
 }

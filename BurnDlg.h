@@ -42,6 +42,7 @@ protected:
 	BOOL      m_bIsRunning;
 	UINT      m_nCanStop;
 	DevPort   m_DevPort[8];
+	int       m_nTotal, m_nSuccess, m_nFailure;
 	CCriticalSection m_cs;
 
 protected:
@@ -64,4 +65,5 @@ private:
 public:
 	int EnumDevices();
 	BOOL IsDeviceRegistered(int hubport, int usbport);
+	BOOL IsAllowClose();
 };
