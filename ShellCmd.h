@@ -14,6 +14,8 @@ public :
 	int ExecuteCmd(LPSTR lpszCmd, BOOL bReturn = 0);
 	void CleanResult();
 	list<string> GetResult();
+	BOOL IsCmdDone();
+	void Terminate();
 protected:
 	PROCESS_INFORMATION pi;
 	HANDLE m_hReadPipe, m_hWritePipe, m_hResult, m_hCmd;

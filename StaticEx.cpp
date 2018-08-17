@@ -10,7 +10,7 @@ CStaticEx::CStaticEx()
 	m_clrBk = RGB(100,100,100);
 	m_nType = 0;
 	GetObject(GetStockObject(DEFAULT_GUI_FONT), sizeof(m_lf), &m_lf);
-	m_lf.lfHeight = 16;
+	m_lf.lfHeight = -14;
 	m_hFont = CreateFontIndirect(&m_lf);
 }
 
@@ -35,6 +35,7 @@ void CStaticEx::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 
 	// TODO:  添加您的代码以绘制指定项
 	CString str;
+	float ccx;
 	int cx;
 	CRect rcItem(lpDrawItemStruct->rcItem),rcValid;
 	HDC hdc = lpDrawItemStruct->hDC;
@@ -46,8 +47,8 @@ void CStaticEx::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 	ExtTextOut(hdc, 0, 0, ETO_OPAQUE, &rcItem, NULL, 0, NULL);
 	if (m_nType == 0)
 	{
-		cx = m_nPos*rcItem.Width() / 100;
-		str.Format(TEXT("%d%%"), m_nPos);
+		cx = (LOBYTE(m_nPos)*100+HIBYTE(m_nPos))*rcItem.Width() / 10000;
+		str.Format(TEXT("%d.%02d%%"), LOBYTE(m_nPos),HIBYTE(m_nPos));
 		::SetBkColor(hdc, m_clrFront);
 		CopyRect(&rcValid, &rcItem);
 		rcValid.right = cx;
@@ -81,11 +82,13 @@ int CStaticEx::SetFontSize(int nSize)
 	return 0;
 }
 
-int CStaticEx::SetPos(int nPos)
+WORD CStaticEx::SetPos(WORD nPos)
 {
-	nPos = nPos < 0 ? 0 : nPos;
-	nPos = nPos > 100 ? 100 : nPos;
-	m_nPos = nPos;
+	WORD pos = LOBYTE(nPos) * 100 + HIBYTE(nPos);
+	if (pos > 10000)
+		m_nPos = MAKEWORD(100, 0);
+	else
+		m_nPos = nPos;
 	Invalidate(0);
 	return m_nPos;
 }

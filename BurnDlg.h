@@ -1,5 +1,7 @@
 #pragma once
 
+#define WM_DEVICENOTIFY	(WM_USER+101)
+#define WM_BURNPROGRESS (WM_USER+102)
 #define BIT(x) (1 << x)
 // CBurnDlg 对话框
 string ws2s(const wstring &ws);
@@ -7,11 +9,12 @@ wstring s2ws(const string &s);
 
 typedef struct
 {
+	int usbroot;//USB root number
 	int port;//COMxxx
 	int usb;//USB port number
 	int hub;//HUB number
-	int id;
-	int valid;
+	int id;//Register id number
+	int valid;//tell main thread a valid device attached
 }DevPort, *PDevPort;
 
 class CBurnDlg : public CDialogEx
@@ -32,12 +35,14 @@ protected:
 	CStatic   m_Info[8];
 	CShellCmd m_cSCmd[8];
 	HANDLE    m_hDevThread[8];
-	string    m_strCmd[8];
+	DWORD     m_dwThreadId[8];
+	char      m_strFwPath[MAX_PATH];
 	CStaticEx m_sOK, m_sNG, m_sTotal;
 	HDEVNOTIFY m_hDevNotify;
 	BOOL      m_bIsRunning;
 	UINT      m_nCanStop;
 	DevPort   m_DevPort[8];
+	CCriticalSection m_cs;
 
 protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV 支持
@@ -50,17 +55,13 @@ public:
 	afx_msg void OnBnClickedStart();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
+	afx_msg LRESULT OnDeviceNotify(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnBurnProgress(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnDestroy();
 private:
-	static UINT Dev1Monitor(LPVOID lpv);
-	static UINT Dev2Monitor(LPVOID lpv);
-	static UINT Dev3Monitor(LPVOID lpv);
-	static UINT Dev4Monitor(LPVOID lpv);
-	static UINT Dev5Monitor(LPVOID lpv);
-	static UINT Dev6Monitor(LPVOID lpv);
-	static UINT Dev7Monitor(LPVOID lpv);
-	static UINT Dev8Monitor(LPVOID lpv);
+	static UINT DevMonitor(LPVOID lpv);
 
 public:
 	int EnumDevices();
+	BOOL IsDeviceRegistered(int hubport, int usbport);
 };

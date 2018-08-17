@@ -63,7 +63,7 @@ void CDragEdit::PreSubclassWindow()
 
 		FreeLibrary(hUserMod);
 	}
-	SetTimer(1, 1000, 0);
+	//SetTimer(1, 1000, 0);
 	CEdit::PreSubclassWindow();
 }
 

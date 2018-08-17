@@ -4,13 +4,44 @@
 
 CShellCmd::CShellCmd()
 {
+	m_hCmd = NULL;
+	m_hResult = NULL;
 }
 
 
 CShellCmd::~CShellCmd()
 {
-	WaitForSingleObject(m_hCmd, INFINITE);
-	WaitForSingleObject(m_hResult, INFINITE);
+	if (m_hCmd)
+	{
+		WaitForSingleObject(m_hCmd, INFINITE);
+		CloseHandle(m_hCmd);
+		m_hCmd = NULL;
+	}
+	if (m_hResult)
+	{
+		WaitForSingleObject(m_hResult, INFINITE);
+		CloseHandle(m_hResult);
+		m_hResult = NULL;
+	}
+}
+
+BOOL CShellCmd::IsCmdDone()
+{
+	if (!m_bWantResult)
+	{
+		return (WAIT_OBJECT_0 == WaitForSingleObject(pi.hProcess, 0));
+	}
+	
+	return (WAIT_OBJECT_0 == WaitForSingleObject(m_hResult, 0));
+}
+
+void CShellCmd::Terminate()
+{
+	if (WAIT_OBJECT_0 != WaitForSingleObject(pi.hProcess, 0))
+	{
+		TerminateThread(pi.hThread, 2);
+		TerminateThread(pi.hProcess, 2);
+	}
 }
 
 int CShellCmd::ExecuteCmd(LPSTR lpszCmd, BOOL bReturn)
@@ -69,8 +100,11 @@ list<string> CShellCmd::GetResult()
 	m_dupStr.clear();
 	m_cs.Lock();
 	copy(m_retStr.begin(), m_retStr.end(), back_inserter(m_dupStr));
-	OutputDebugString(L"GetResult\n");
-	Sleep(10000);
+	int size = m_retStr.size()-1;
+	while (size-- > 0)
+	{
+		m_retStr.pop_front();
+	}
 	m_cs.Unlock();
 	return m_dupStr;
 }
