@@ -35,7 +35,6 @@ void CStaticEx::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 
 	// TODO:  添加您的代码以绘制指定项
 	CString str;
-	float ccx;
 	int cx;
 	CRect rcItem(lpDrawItemStruct->rcItem),rcValid;
 	HDC hdc = lpDrawItemStruct->hDC;

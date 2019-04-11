@@ -45,10 +45,8 @@ void CBurnDlg::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(CBurnDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_BROWSE, &CBurnDlg::OnBnClickedBrowse)
-	ON_WM_DROPFILES()
 	ON_WM_DEVICECHANGE()
 	ON_BN_CLICKED(IDC_START, &CBurnDlg::OnBnClickedStart)
-	ON_WM_TIMER()
 	ON_WM_DESTROY()
 	ON_MESSAGE(WM_DEVICENOTIFY, OnDeviceNotify)
 	ON_MESSAGE(WM_BURNPROGRESS, OnBurnProgress)
@@ -69,9 +67,7 @@ BOOL CBurnDlg::OnInitDialog()
 		m_Dev[i].SetBkColor(RGB(100, 100, 100));
 		m_Dev[i].SetTextColor(RGB(255, 255, 255));
 		m_Dev[i].SetFrontColor(RGB(0, 224, 0));
-		//m_Dev[i].SetPos(MAKEWORD(11,55));
 		m_Info[i].SubclassDlgItem(IDC_INFO1 + i,this);
-		//m_Info[i].SetWindowText(TEXT("Hello"));
 	}
 	m_sOK.SubclassDlgItem(IDC_SUCCESS, this);
 	m_sOK.SetType(1);
@@ -93,21 +89,13 @@ BOOL CBurnDlg::OnInitDialog()
 	strTmp.Format(TEXT("%06d"), m_nFailure);
 	m_sNG.SetWindowText(strTmp);
 
-	//m_sOK.SetWindowText(TEXT("9999"));
 	m_fwPath.SubclassDlgItem(IDC_FWPATH,this);
-	//SetDlgItemText(IDC_FWPATH, TEXT("可通过直接拖拽固件包所在目录到此处来快速选择！"));
-	//SetTimer(1, 1000, 0);
-	//CEdit* p = (CEdit*)GetDlgItem(IDC_FWPATH);
-	//p->ShowBalloonTip(TEXT("固件包路径提示"), TEXT("可通过浏览按钮或直接拖拽固件包所在目录来快速选择！"), TTI_INFO);
 	DEV_BROADCAST_DEVICEINTERFACE   dbi;
 	ZeroMemory(&dbi, sizeof(dbi));
 	dbi.dbcc_size = sizeof(dbi);
 	dbi.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
 	dbi.dbcc_reserved = 0;
 	dbi.dbcc_classguid = GUID_CLASS_USB_DEVICE;
-	WCHAR *com = L"Communications Port (COM21)";
-	WCHAR *p = wcsstr(com, L"COM");
-	//EnumDevices();
 	m_hDevNotify = RegisterDeviceNotification(m_hWnd, &dbi, DEVICE_NOTIFY_WINDOW_HANDLE);//DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
@@ -126,30 +114,19 @@ void CBurnDlg::OnBnClickedBrowse()
 	}
 }
 
-
-void CBurnDlg::OnDropFiles(HDROP hDropInfo)
-{
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-
-	// TODO: Add your message handler code here and/or call default
-
-	CDialogEx::OnDropFiles(hDropInfo);
-}
-
-
 void CBurnDlg::OnBnClickedStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	//m_cSCmd.ExecuteCmd("cmd.exe /c dir c:\\windows\\system32 /og",1);
-	//Sleep(50);
-	//list<string> result = m_cSCmd.GetResult();
-	//OutputDebugString(L"GetResult\n");
 	if (m_bIsRunning)
 	{
 		if (m_nCanStop == 0)
 		{
 			m_bIsRunning = FALSE;
 			WaitForMultipleObjects(8, m_hDevThread, TRUE, INFINITE);
+			for (int i = 0; i < 8; i++)
+			{
+				CloseHandle(m_hDevThread[i]);
+			}
 			OutputDebugString(L"WaitForMultipleObjects returned\n");
 			SetDlgItemText(IDC_START, TEXT("启动"));//to be start
 			GetDlgItem(IDC_FWPATH)->EnableWindow();
@@ -195,18 +172,6 @@ void CBurnDlg::OnBnClickedStart()
 	}
 }
 
-
-void CBurnDlg::OnTimer(UINT_PTR nIDEvent)
-{
-	// TODO: 在此添加消息处理程序代码和/或调用默认值
-	if (nIDEvent == 1)
-	{
-		KillTimer(1);
-	}
-
-	CDialogEx::OnTimer(nIDEvent);
-}
-
 BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 {
 	switch (nEventType)
@@ -224,12 +189,12 @@ BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 			{
 				if (nEventType == DBT_DEVICEARRIVAL)
 				{
-					OutputDebugString(TEXT("MSM8953 EDL Device  ----  Inserted\n"));
+					OutputDebugString(TEXT("Qualcomm EDL Device  ----  Inserted\n"));
 					EnumDevices();
 				}
 				else if (nEventType == DBT_DEVICEREMOVECOMPLETE)
 				{
-					OutputDebugString(TEXT("MSM8953 EDL Device  ----  Removed\n"));
+					OutputDebugString(TEXT("Qualcomm EDL Device  ----  Removed\n"));
 					wchar_t buff[128] = { 0 };
 					wcscpy_s(buff, 128, pDevInf->dbcc_name);
 					wchar_t* subStr = wcsrchr(buff, '#');
@@ -271,7 +236,7 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 				m_Dev[lParam].SetPos(0);
 				m_Dev[lParam].SetBkColor(RGB(100, 100, 100));
 			}
-			strInfo.Format(TEXT("ROOT(%04d)#HUB(%04d)#USB(%04d)#COM%d     %s"),
+			strInfo.Format(TEXT("ROOT(%04d)#HUB(%04d)#USB(%04d)#COM%d        %s"),
 				m_DevPort[lParam].usbroot,
 				m_DevPort[lParam].hub, 
 				m_DevPort[lParam].usb, 
@@ -294,9 +259,11 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 	}
 	else if (wParam == 3)//烧录完成
 	{
-		m_Dev[lParam].SetType(1);
-		m_Dev[lParam].SetBkColor(RGB(0, 200, 0));
-		m_Dev[lParam].SetWindowText(TEXT("烧录成功"));
+		WORD times = HIWORD(lParam);
+		strInfo.Format(TEXT("烧录成功(耗时:%d秒)"),LOBYTE(times));
+		m_Dev[LOWORD(lParam)].SetType(1);
+		m_Dev[LOWORD(lParam)].SetBkColor(RGB(0, 200, 0));
+		m_Dev[LOWORD(lParam)].SetWindowText(strInfo);
 		m_nSuccess++;
 		m_nTotal++;
 		strInfo.Format(TEXT("%06d"), m_nTotal);
@@ -343,7 +310,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 		if (dwDevMonId == p->m_dwThreadId[i])
 		{
 			uID = i;
-			swprintf_s(strThreadId, 32, TEXT("ThreadId->%d is running!\n"), uID);
+			swprintf_s(strThreadId, 32, TEXT("DevMonitor[%d] is running!\n"), uID);
 			OutputDebugString(strThreadId);
 			break;
 		}
@@ -363,6 +330,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 			int flag = 0;
 			int per_int=0, per_float=0;
 			int per_sum=0, per_sum_old=0;
+			int sec = 0, minisec = 0;
 			sprintf_s(szCmd, 512, "cmd.exe /c QSaharaServer.exe -p \\\\.\\COM%d -c 1 -s 13:%s\\prog_emmc_firehose_8953_ddr.mbn -x", p->m_DevPort[uID].port,p->m_strFwPath);
 			p->m_cSCmd[uID].ExecuteCmd(szCmd, 1);
 			while (!p->m_cSCmd[uID].IsCmdDone())//等待运行结束
@@ -405,12 +373,8 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 			flag = 0;
 			sprintf_s(szCmd, 512, "cmd.exe /c fh_loader.exe --port=\\\\.\\COM%d --sendxml=rawprogram_unsparse.xml,patch0.xml --search_path=\"%s\" --noprompt --showpercentagecomplete --zlpawarehost=1 --memoryname=eMMC --setactivepartition=0", p->m_DevPort[uID].port,p->m_strFwPath);
 			p->m_cSCmd[uID].ExecuteCmd(szCmd, 1);
-			while (!p->m_cSCmd[uID].IsCmdDone())//等待运行结束
+			while (!p->m_cSCmd[uID].IsCmdDone() && p->m_DevPort[uID].valid)//等待运行结束或设备断开
 			{
-				if (p->m_DevPort[uID].valid == 0)
-				{
-					break;
-				}
 				result = p->m_cSCmd[uID].GetResult();
 				for (list<string>::iterator it = result.begin(); it != result.end(); it++)
 				{
@@ -447,21 +411,28 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 					}
 					else if (flag == 2)
 					{
-						break;
+						szOut = strstr(szCmd, "Overall to target");
+						if (szOut)
+						{
+							sscanf_s(szOut, "Overall to target %d.%03d seconds", &sec, &minisec);
+							if (sec && minisec)
+							{
+								break;
+							}
+						}
 					}
 				}
 				result.clear();
 				Sleep(10);
 			}
 			//运行已结束，获取结束后的信息
+			if (p->m_DevPort[uID].valid == 0)
+			{
+				break;
+			}
 			result = p->m_cSCmd[uID].GetResult();
 			for (list<string>::iterator it = result.begin(); it != result.end(); it++)
 			{
-				if (p->m_DevPort[uID].valid == 0)
-				{
-					break;
-				}
-
 				szTmp = *it;
 				strcpy_s(szCmd, 512, szTmp.c_str());
 				if (flag == 0)
@@ -495,16 +466,19 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				}
 				else if (flag == 2)
 				{
-					break;
+					szOut = strstr(szCmd, "Overall to target");
+					if (szOut)
+					{
+						sscanf_s(szOut, "Overall to target %d.%03d seconds", &sec, &minisec);
+						if (sec && minisec)
+						{
+							break;
+						}
+					}
 				}
 			}
 			result.clear();
-			//Sleep(1000);
-			if (p->m_DevPort[uID].valid == 0)
-			{
-				p->m_cSCmd[uID].Terminate();
-			}
-
+			Sleep(1000);
 
 			if (flag != 2)//第2条命令出错，退出烧录
 			{
@@ -521,45 +495,20 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				p->m_cs.Lock();
 				p->m_nCanStop &= ~BIT(0);
 				p->m_cs.Unlock();
-				p->PostMessage(WM_DEVICENOTIFY, 3, uID);//通知主程序所有操作已正确完成
+				p->PostMessage(WM_DEVICENOTIFY, 3, MAKELONG(uID,MAKEWORD(sec,minisec)));//通知主程序所有操作已正确完成
 				continue;//等待下一次新设备插入
+			}
+		}
+		else
+		{
+			if (!p->m_cSCmd[uID].IsCmdDone())//设备已拔出--->强行中断烧录进程
+			{
+				p->m_cSCmd[uID].Terminate();
 			}
 		}
 		Sleep(100);
 	}
 	return 0L;
-}
-
-string ws2s(const wstring &ws)
-{
-	size_t i;
-	string curLocale = setlocale(LC_ALL, NULL);
-	setlocale(LC_ALL, "chs");
-	const wchar_t* _source = ws.c_str();
-	size_t _dsize = 2 * ws.size() + 1;
-	char* _dest = new char[_dsize];
-	memset(_dest, 0x0, _dsize);
-	wcstombs_s(&i, _dest, _dsize, _source, _dsize);
-	string result = _dest;
-	delete[] _dest;
-	setlocale(LC_ALL, curLocale.c_str());
-	return result;
-}
-
-wstring s2ws(const string &s)
-{
-	size_t i;
-	string curLocale = setlocale(LC_ALL, NULL);
-	setlocale(LC_ALL, "chs");
-	const char* _source = s.c_str();
-	size_t _dsize = s.size() + 1;
-	wchar_t* _dest = new wchar_t[_dsize];
-	wmemset(_dest, 0x0, _dsize);
-	mbstowcs_s(&i, _dest, _dsize, _source, _dsize);
-	wstring result = _dest;
-	delete[] _dest;
-	setlocale(LC_ALL, curLocale.c_str());
-	return result;
 }
 
 int CBurnDlg::EnumDevices()

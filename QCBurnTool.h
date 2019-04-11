@@ -23,6 +23,7 @@ public:
 // ÷ÿ–¥
 public:
 	virtual BOOL InitInstance();
+	HANDLE m_hMutex;
 
 //  µœ÷
 

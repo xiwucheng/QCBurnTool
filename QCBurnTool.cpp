@@ -54,6 +54,17 @@ BOOL CQCBurnToolApp::InitInstance()
 
 	AfxEnableControlContainer();
 
+
+	m_hMutex = OpenMutex(MUTEX_ALL_ACCESS, FALSE, TEXT("QCBurnTool"));
+	if (m_hMutex)
+	{
+		MessageBox(NULL, TEXT("不支持运行多个实例，请通过Alt + Tab切换到工具界面！"), TEXT("友情提示"), MB_ICONWARNING);
+		return FALSE;
+	}
+	else
+	{
+		m_hMutex = CreateMutex(NULL, FALSE, TEXT("QCBurnTool"));
+	}
 	// 创建 shell 管理器，以防对话框包含
 	// 任何 shell 树视图控件或 shell 列表视图控件。
 	CShellManager *pShellManager = new CShellManager;
@@ -101,6 +112,9 @@ BOOL CQCBurnToolApp::InitInstance()
 
 	// 由于对话框已关闭，所以将返回 FALSE 以便退出应用程序，
 	//  而不是启动应用程序的消息泵。
+	if (m_hMutex)
+		CloseHandle(m_hMutex);
+	m_hMutex = NULL;
 	return FALSE;
 }
 

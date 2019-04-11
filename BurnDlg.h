@@ -4,8 +4,6 @@
 #define WM_BURNPROGRESS (WM_USER+102)
 #define BIT(x) (1 << x)
 // CBurnDlg ¶Ô»°¿ò
-string ws2s(const wstring &ws);
-wstring s2ws(const string &s);
 
 typedef struct
 {
@@ -52,7 +50,6 @@ protected:
 public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnBnClickedBrowse();
-	afx_msg void OnDropFiles(HDROP hDropInfo);
 	afx_msg void OnBnClickedStart();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
