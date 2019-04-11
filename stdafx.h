@@ -55,3 +55,4 @@
 #include "StaticEx.h"
 #include "DragEdit.h"
 #include "ShellCmd.h"
+#include "Inc/Lock.h"

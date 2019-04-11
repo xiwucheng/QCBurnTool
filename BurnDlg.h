@@ -12,7 +12,7 @@ typedef struct
 	int usb;//USB port number
 	int hub;//HUB number
 	int id;//Register id number
-	int valid;//tell main thread a valid device attached
+	volatile int valid;//tell main thread a valid device attached
 }DevPort, *PDevPort;
 
 class CBurnDlg : public CDialogEx
@@ -35,12 +35,14 @@ protected:
 	HANDLE    m_hDevThread[8];
 	DWORD     m_dwThreadId[8];
 	char      m_strFwPath[MAX_PATH];
-	CStaticEx m_sOK, m_sNG, m_sTotal;
+	CStaticEx m_sUKey, m_sOK, m_sNG, m_sTotal;
 	HDEVNOTIFY m_hDevNotify;
 	BOOL      m_bIsRunning;
 	UINT      m_nCanStop;
 	DevPort   m_DevPort[8];
-	int       m_nTotal, m_nSuccess, m_nFailure;
+	int       m_nUkeyBal, m_nTotal, m_nSuccess, m_nFailure;
+	WORD      m_key1,m_key2,m_key3,m_key4;
+	int       m_nBal, m_nBalChk;
 	CCriticalSection m_cs;
 
 protected:
@@ -51,7 +53,6 @@ public:
 	virtual BOOL OnInitDialog();
 	afx_msg void OnBnClickedBrowse();
 	afx_msg void OnBnClickedStart();
-	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg BOOL OnDeviceChange(UINT nEventType, DWORD_PTR dwData);
 	afx_msg LRESULT OnDeviceNotify(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnBurnProgress(WPARAM wParam, LPARAM lParam);
@@ -63,4 +64,11 @@ public:
 	int EnumDevices();
 	BOOL IsDeviceRegistered(int hubport, int usbport);
 	BOOL IsAllowClose();
+	BOOL GetUKeyState();
+	int GetBalance(int nSerNum);
+	string ConvertPwd();
+	int Decrease(int nSerNum);
+	int Increase(int nSerNum);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
 };

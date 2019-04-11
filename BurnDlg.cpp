@@ -11,14 +11,17 @@
 #include <Dbt.h>
 #pragma comment(lib, "Winmm.lib")
 #pragma comment(lib, "setupapi.lib")
+#pragma comment(lib, "Lib/cdll8.lib")
 
-
+#define USE_UKEY
 
 DEFINE_GUID(GUID_DEVINTERFACE_USB_DEVICE, 0xA5DCBF10L, 0x6530, 0x11D2, 0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED);
 #define GUID_CLASS_USB_DEVICE		GUID_DEVINTERFACE_USB_DEVICE  
 
 DEFINE_GUID(GUID_DEVINTERFACE_USB_HUB, 0xf18a0e88, 0xc30c, 0x11d0, 0x88, 0x15, 0x00, 0xa0, 0xc9, 0x06, 0xbe, 0xd8);
 #define GUID_CLASS_USB_HUB		GUID_DEVINTERFACE_USB_HUB
+
+const BYTE cszPd[] = { 0x35,0x35,0x44,0x00,0x03,0x43,0x5a,0x42,0x00 };
 
 // CBurnDlg 对话框
 
@@ -28,6 +31,7 @@ CBurnDlg::CBurnDlg(CWnd* pParent /*=NULL*/)
 	: CDialogEx(IDD_BURNDLG, pParent)
 {
 	m_bIsRunning = FALSE;
+	m_key1 = 10223;
 	m_nCanStop = 0;
 	memset(m_DevPort, 0, sizeof(m_DevPort));
 	m_nTotal = m_nSuccess = m_nFailure = 0;
@@ -50,6 +54,7 @@ BEGIN_MESSAGE_MAP(CBurnDlg, CDialogEx)
 	ON_WM_DESTROY()
 	ON_MESSAGE(WM_DEVICENOTIFY, OnDeviceNotify)
 	ON_MESSAGE(WM_BURNPROGRESS, OnBurnProgress)
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -69,6 +74,11 @@ BOOL CBurnDlg::OnInitDialog()
 		m_Dev[i].SetFrontColor(RGB(0, 224, 0));
 		m_Info[i].SubclassDlgItem(IDC_INFO1 + i,this);
 	}
+	m_key2 = 6615;
+	m_sUKey.SubclassDlgItem(IDC_UKEY, this);
+	m_sUKey.SetType(1);
+	m_sUKey.SetFontSize(20);
+	m_sUKey.SetBkColor(RGB(0, 200, 200));
 	m_sOK.SubclassDlgItem(IDC_SUCCESS, this);
 	m_sOK.SetType(1);
 	m_sOK.SetFontSize(20);
@@ -82,13 +92,15 @@ BOOL CBurnDlg::OnInitDialog()
 	m_sTotal.SetFontSize(20);
 	m_sTotal.SetBkColor(RGB(200, 100, 0));
 	CString strTmp;
+	strTmp.Format(TEXT("%06d"), GetBalance(0));
+	m_sUKey.SetWindowText(strTmp);
 	strTmp.Format(TEXT("%06d"), m_nTotal);
 	m_sTotal.SetWindowText(strTmp);
 	strTmp.Format(TEXT("%06d"), m_nSuccess);
 	m_sOK.SetWindowText(strTmp);
 	strTmp.Format(TEXT("%06d"), m_nFailure);
 	m_sNG.SetWindowText(strTmp);
-
+	m_key4 = 9323;
 	m_fwPath.SubclassDlgItem(IDC_FWPATH,this);
 	DEV_BROADCAST_DEVICEINTERFACE   dbi;
 	ZeroMemory(&dbi, sizeof(dbi));
@@ -97,6 +109,7 @@ BOOL CBurnDlg::OnInitDialog()
 	dbi.dbcc_reserved = 0;
 	dbi.dbcc_classguid = GUID_CLASS_USB_DEVICE;
 	m_hDevNotify = RegisterDeviceNotification(m_hWnd, &dbi, DEVICE_NOTIFY_WINDOW_HANDLE);//DEVICE_NOTIFY_ALL_INTERFACE_CLASSES
+	m_key3 = 5972;
 	return TRUE;  // return TRUE unless you set the focus to a control
 				  // 异常: OCX 属性页应返回 FALSE
 }
@@ -117,6 +130,9 @@ void CBurnDlg::OnBnClickedBrowse()
 void CBurnDlg::OnBnClickedStart()
 {
 	// TODO: 在此添加控件通知处理程序代码
+	int nBal;
+	CString szTrace;
+
 	if (m_bIsRunning)
 	{
 		if (m_nCanStop == 0)
@@ -127,7 +143,7 @@ void CBurnDlg::OnBnClickedStart()
 			{
 				CloseHandle(m_hDevThread[i]);
 			}
-			OutputDebugString(L"WaitForMultipleObjects returned\n");
+			OutputDebugString(L"INFO2:WaitForMultipleObjects returned\n");
 			SetDlgItemText(IDC_START, TEXT("启动"));//to be start
 			GetDlgItem(IDC_FWPATH)->EnableWindow();
 			GetDlgItem(IDC_BROWSE)->EnableWindow();
@@ -142,6 +158,24 @@ void CBurnDlg::OnBnClickedStart()
 		//Start DevMonitor
 		CString strPath;
 		m_fwPath.GetWindowText(strPath);
+
+#ifdef USE_UKEY
+		if (!GetUKeyState())
+		{
+			MessageBox(TEXT("未检测到U盾，或U盾与工具不匹配，\n请插入有授权的U盾！"), TEXT("错误"), MB_ICONERROR);
+			return;
+		}
+
+		nBal = GetBalance(0);
+		szTrace.Format(TEXT("INFO2:{The balance of U Key is %d time(s)}\n"), nBal);
+		OutputDebugString(szTrace);
+		if (nBal == 0)
+		{
+			MessageBox(TEXT("U盾剩余次数已用完，\n请插入有授权次数的U盾！"), TEXT("错误"), MB_ICONERROR);
+			return;
+		}
+#endif
+
 		if (strPath.GetLength() == 0)
 		{
 			MessageBox(TEXT("固件路径不能为空！"), TEXT("错误"), MB_ICONERROR);
@@ -174,8 +208,13 @@ void CBurnDlg::OnBnClickedStart()
 
 BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 {
+	CString strInfo;
 	switch (nEventType)
 	{
+	case DBT_DEVNODES_CHANGED:
+		strInfo.Format(TEXT("INFO2: ++++++++++DBT_DEVNODES_CHANGED++++++++++\n"));
+		OutputDebugString(strInfo);
+		break;
 	case DBT_DEVICEARRIVAL:
 	case DBT_DEVICEREMOVECOMPLETE:
 	{
@@ -189,12 +228,12 @@ BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 			{
 				if (nEventType == DBT_DEVICEARRIVAL)
 				{
-					OutputDebugString(TEXT("Qualcomm EDL Device  ----  Inserted\n"));
+					OutputDebugString(TEXT("INFO2: Qualcomm EDL Device  ----  Inserted\n"));
 					EnumDevices();
 				}
 				else if (nEventType == DBT_DEVICEREMOVECOMPLETE)
 				{
-					OutputDebugString(TEXT("Qualcomm EDL Device  ----  Removed\n"));
+					OutputDebugString(TEXT("INFO2: Qualcomm EDL Device  ----  Removed\n"));
 					wchar_t buff[128] = { 0 };
 					wcscpy_s(buff, 128, pDevInf->dbcc_name);
 					wchar_t* subStr = wcsrchr(buff, '#');
@@ -208,13 +247,23 @@ BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 						{
 							if (m_DevPort[i].usbroot == usbroot && m_DevPort[i].usb == usb)
 							{
+								m_cs.Lock();
 								m_DevPort[i].valid = 0;
+								m_cs.Unlock();
 								PostMessage(WM_DEVICENOTIFY, 0, i);
 								break;
 							}
 						}
 					}
 				}
+			}
+			else if (memcmp(&pDevInf->dbcc_classguid, &GUID_CLASS_USB_DEVICE, sizeof(GUID)) == 0 &&
+				wcsstr(pDevInf->dbcc_name, TEXT("VID_1241&PID_E001")))
+			{
+				CString strInfo;
+				Sleep(1000);
+				strInfo.Format(TEXT("%06d"), GetBalance(0));
+				m_sUKey.SetWindowText(strInfo);
 			}
 		}
 		break;
@@ -226,11 +275,15 @@ BOOL CBurnDlg::OnDeviceChange(UINT nEventType, DWORD_PTR dwData)
 LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 {
 	CString strInfo;
+	int valid;
 	if (wParam == 0)//设备的插入与拔出
 	{
 		if (m_DevPort[lParam].id)
 		{
-			if (m_DevPort[lParam].valid)
+			m_cs.Lock();
+			valid = m_DevPort[lParam].valid;
+			m_cs.Unlock();
+			if (valid)
 			{
 				m_Dev[lParam].SetType(0);
 				m_Dev[lParam].SetPos(0);
@@ -241,7 +294,7 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 				m_DevPort[lParam].hub, 
 				m_DevPort[lParam].usb, 
 				m_DevPort[lParam].port,
-				m_DevPort[lParam].valid ? TEXT("已连接") : TEXT("未连接"));
+				valid ? TEXT("已连接") : TEXT("未连接"));
 			m_Info[lParam].SetWindowText(strInfo);
 		}
 	}
@@ -256,6 +309,8 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 		m_sTotal.SetWindowText(strInfo);
 		strInfo.Format(TEXT("%06d"), m_nFailure);
 		m_sNG.SetWindowText(strInfo);
+		strInfo.Format(TEXT("%06d"), GetBalance(0));
+		m_sUKey.SetWindowText(strInfo);
 	}
 	else if (wParam == 3)//烧录完成
 	{
@@ -270,6 +325,9 @@ LRESULT CBurnDlg::OnDeviceNotify(WPARAM wParam, LPARAM lParam)
 		m_sTotal.SetWindowText(strInfo);
 		strInfo.Format(TEXT("%06d"), m_nSuccess);
 		m_sOK.SetWindowText(strInfo);
+		strInfo.Format(TEXT("%06d"), GetBalance(0));
+		m_sUKey.SetWindowText(strInfo);
+
 	}
 	return 0;
 }
@@ -298,9 +356,11 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 {
 	CBurnDlg* p = (CBurnDlg*)lpv;
 	UINT uID;
-	wchar_t strThreadId[32] = { 0 };
+	wchar_t strThreadId[64] = { 0 };
 	HANDLE hDevMon = 0;
 	DWORD dwDevMonId = 0;
+	int nBal,valid;
+	CString szTrace;
 
 	p->m_cs.Lock();
 	hDevMon = GetCurrentThread();
@@ -310,7 +370,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 		if (dwDevMonId == p->m_dwThreadId[i])
 		{
 			uID = i;
-			swprintf_s(strThreadId, 32, TEXT("DevMonitor[%d] is running!\n"), uID);
+			swprintf_s(strThreadId, 64, TEXT("INFO2:DevMonitor[%d][0x%x] is running!\n"), uID,dwDevMonId);
 			OutputDebugString(strThreadId);
 			break;
 		}
@@ -319,10 +379,15 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 
 	while (p->m_bIsRunning)
 	{
-		if (p->m_DevPort[uID].valid)//设备已插入，开始烧录
+		p->m_cs.Lock();
+		valid = p->m_DevPort[uID].valid;
+		p->m_cs.Unlock();
+		//szTrace.Format(TEXT("uID = %d, valid = %d\n"),uID, p->m_DevPort[uID].valid);
+		//OutputDebugString(szTrace);
+		if (valid)//设备已插入，开始烧录
 		{
 			p->m_cs.Lock();
-			p->m_nCanStop |= BIT(0);
+			p->m_nCanStop |= BIT(uID);
 			p->m_cs.Unlock();
 			char szCmd[512] = { 0 }, *szOut;
 			list<string> result;
@@ -331,8 +396,31 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 			int per_int=0, per_float=0;
 			int per_sum=0, per_sum_old=0;
 			int sec = 0, minisec = 0;
+
+#ifdef USE_UKEY
+			if (!p->GetUKeyState())
+			{
+				p->m_cs.Lock();
+				p->m_DevPort[uID].valid = 0;
+				p->m_nCanStop &= ~BIT(uID);
+				p->m_cs.Unlock();
+				p->PostMessage(WM_DEVICENOTIFY, 1, uID);//通知主程序U盾拔出了
+				if (!p->m_cSCmd[uID].IsCmdDone())//强行中断烧录进程
+				{
+					p->m_cSCmd[uID].Terminate();
+				}
+				continue;//等待下一次新设备插入
+			}
+			p->Decrease(0);
+			nBal = p->GetBalance(0);
+			szTrace.Format(TEXT("INFO2:{The balance of U Key is %d time(s)}\n"), nBal);
+			OutputDebugString(szTrace);
+#endif
+			Sleep(500);
 			sprintf_s(szCmd, 512, "cmd.exe /c QSaharaServer.exe -p \\\\.\\COM%d -c 1 -s 13:%s\\prog_emmc_firehose_8953_ddr.mbn -x", p->m_DevPort[uID].port,p->m_strFwPath);
 			p->m_cSCmd[uID].ExecuteCmd(szCmd, 1);
+			//szTrace.Format(TEXT("INFO2:%S\n"),szCmd);
+			//OutputDebugString(szTrace);
 			while (!p->m_cSCmd[uID].IsCmdDone())//等待运行结束
 			{
 				Sleep(100);
@@ -346,6 +434,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				{
 					if (strstr(szCmd, "File transferred successfully"))
 					{
+						//OutputDebugString(L"INFO2:File transferred successfully\n");
 						flag = 1;
 					}
 				}
@@ -353,6 +442,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				{
 					if (strstr(szCmd, "Sahara protocol completed"))
 					{
+						//OutputDebugString(L"INFO2:Sahara protocol completed\n");
 						flag = 2;
 						break;
 					}
@@ -361,23 +451,60 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 			result.clear();
 			if (flag != 2)//第1条命令出错，退出烧录
 			{
-				p->m_DevPort[uID].valid = 0;
 				p->m_cs.Lock();
-				p->m_nCanStop &= ~BIT(0);
+				p->m_DevPort[uID].valid = 0;
+				p->m_nCanStop &= ~BIT(uID);
 				p->m_cs.Unlock();
 				p->PostMessage(WM_DEVICENOTIFY, 1, uID);//通知主程序在第1条指令出错了
+#ifdef USE_UKEY
+				int nBal;
+				CString szTrace;
+				if (!p->GetUKeyState())//非法拔UKey，不补偿次数
+				{
+					if (!p->m_cSCmd[uID].IsCmdDone())//设备已拔出--->强行中断烧录进程
+					{
+						p->m_cSCmd[uID].Terminate();
+					}
+					continue;//等待下一次新设备插入
+				}
+				p->Increase(0);//因为烧录失败补偿次数
+				nBal = p->GetBalance(0);
+				szTrace.Format(TEXT("INFO2:{The balance of U Key is %d time(s)}\n"), nBal);
+				OutputDebugString(szTrace);
+#endif
+				if (!p->m_cSCmd[uID].IsCmdDone())//强行中断烧录进程
+				{
+					p->m_cSCmd[uID].Terminate();
+				}
 				continue;//等待下一次新设备插入
 			}
 
 			//-----------------------------------------------------------------------
 			flag = 0;
+			//Sleep(5000);
 			sprintf_s(szCmd, 512, "cmd.exe /c fh_loader.exe --port=\\\\.\\COM%d --sendxml=rawprogram_unsparse.xml,patch0.xml --search_path=\"%s\" --noprompt --showpercentagecomplete --zlpawarehost=1 --memoryname=eMMC --setactivepartition=0", p->m_DevPort[uID].port,p->m_strFwPath);
 			p->m_cSCmd[uID].ExecuteCmd(szCmd, 1);
-			while (!p->m_cSCmd[uID].IsCmdDone() && p->m_DevPort[uID].valid)//等待运行结束或设备断开
+			//szTrace.Format(TEXT("KC:%S\n"), szCmd);
+			//OutputDebugString(szTrace);
+			while (!p->m_cSCmd[uID].IsCmdDone())//等待运行结束或设备断开
 			{
+				p->m_cs.Lock();
+				valid = p->m_DevPort[uID].valid;
+				p->m_cs.Unlock();
+				if (!valid)
+				{
+					break;
+				}
 				result = p->m_cSCmd[uID].GetResult();
 				for (list<string>::iterator it = result.begin(); it != result.end(); it++)
 				{
+					p->m_cs.Lock();
+					valid = p->m_DevPort[uID].valid;
+					p->m_cs.Unlock();
+					if (!valid)
+					{
+						break;
+					}
 					szTmp = *it;
 					strcpy_s(szCmd, 512, szTmp.c_str());
 					if (flag == 0)
@@ -385,15 +512,19 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 						szOut = strstr(szCmd, "{percent files transferred");
 						if (szOut)
 						{
-							sscanf_s(szOut, "{percent files transferred %d.%02d}", &per_int, &per_float);
+							sscanf_s(szOut, "{percent files transferred %d.%02d}\n", &per_int, &per_float);
 							per_sum = per_int * 100 + per_float;
 							if (per_sum > per_sum_old)
 							{
 								per_sum_old = per_sum;
 								p->PostMessage(WM_BURNPROGRESS, uID, MAKEWORD(per_int, per_float));
-								OutputDebugStringA(szOut);
-								OutputDebugStringA("\n");
-								Sleep(500);
+#ifdef USE_UKEY
+								if (!p->GetUKeyState())
+								{
+									break;
+								}
+#endif
+								Sleep(200);
 							}
 						}
 						if (per_int == 100)
@@ -406,6 +537,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 						szOut = strstr(szCmd, "All Finished Successfully");
 						if (szOut)
 						{
+							//OutputDebugString(L"All Finished Successfully\n");
 							flag = 2;
 						}
 					}
@@ -415,7 +547,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 						if (szOut)
 						{
 							sscanf_s(szOut, "Overall to target %d.%03d seconds", &sec, &minisec);
-							if (sec && minisec)
+							if (sec)
 							{
 								break;
 							}
@@ -424,15 +556,18 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				}
 				result.clear();
 				Sleep(10);
-			}
-			//运行已结束，获取结束后的信息
-			if (p->m_DevPort[uID].valid == 0)
-			{
-				break;
-			}
+			}//等待运行结束或设备断开
+
 			result = p->m_cSCmd[uID].GetResult();
 			for (list<string>::iterator it = result.begin(); it != result.end(); it++)
 			{
+				p->m_cs.Lock();
+				valid = p->m_DevPort[uID].valid;
+				p->m_cs.Unlock();
+				if (!valid)
+				{
+					break;
+				}
 				szTmp = *it;
 				strcpy_s(szCmd, 512, szTmp.c_str());
 				if (flag == 0)
@@ -440,14 +575,19 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 					szOut = strstr(szCmd, "{percent files transferred");
 					if (szOut)
 					{
-						sscanf_s(szOut, "{percent files transferred %d.%02d}", &per_int, &per_float);
+						sscanf_s(szOut, "{percent files transferred %d.%02d}\n", &per_int, &per_float);
 						per_sum = per_int * 100 + per_float;
 						if (per_sum > per_sum_old)
 						{
 							per_sum_old = per_sum;
 							p->PostMessage(WM_BURNPROGRESS, uID, MAKEWORD(per_int, per_float));
-							OutputDebugStringA(szOut);
-							OutputDebugStringA("\n");
+							//OutputDebugStringA(szOut);
+#ifdef USE_UKEY
+							if (!p->GetUKeyState())
+							{
+								break;
+							}
+#endif
 							Sleep(200);
 						}
 					}
@@ -470,7 +610,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 					if (szOut)
 					{
 						sscanf_s(szOut, "Overall to target %d.%03d seconds", &sec, &minisec);
-						if (sec && minisec)
+						if (sec)
 						{
 							break;
 						}
@@ -484,16 +624,36 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 			{
 				p->m_DevPort[uID].valid = 0;
 				p->m_cs.Lock();
-				p->m_nCanStop &= ~BIT(0);
+				p->m_nCanStop &= ~BIT(uID);
 				p->m_cs.Unlock();
 				p->PostMessage(WM_DEVICENOTIFY, 2, uID);//通知主程序在第2条指令出错了
+#ifdef USE_UKEY
+				int nBal;
+				CString szTrace;
+				if (!p->GetUKeyState())//非法拔UKey，不补偿次数
+				{
+					if (!p->m_cSCmd[uID].IsCmdDone())//设备已拔出--->强行中断烧录进程
+					{
+						p->m_cSCmd[uID].Terminate();
+					}
+					continue;//等待下一次新设备插入
+				}
+				p->Increase(0);//因为烧录失败补偿次数
+				nBal = p->GetBalance(0);
+				szTrace.Format(TEXT("INFO2:{The balance of U Key is %d time(s)}\n"), nBal);
+				OutputDebugString(szTrace);
+#endif
+				if (!p->m_cSCmd[uID].IsCmdDone())//强行中断烧录进程
+				{
+					p->m_cSCmd[uID].Terminate();
+				}
 				continue;//等待下一次新设备插入
 			}
 			else
 			{
 				p->m_DevPort[uID].valid = 0;
 				p->m_cs.Lock();
-				p->m_nCanStop &= ~BIT(0);
+				p->m_nCanStop &= ~BIT(uID);
 				p->m_cs.Unlock();
 				p->PostMessage(WM_DEVICENOTIFY, 3, MAKELONG(uID,MAKEWORD(sec,minisec)));//通知主程序所有操作已正确完成
 				continue;//等待下一次新设备插入
@@ -506,7 +666,7 @@ UINT CBurnDlg::DevMonitor(LPVOID lpv)
 				p->m_cSCmd[uID].Terminate();
 			}
 		}
-		Sleep(100);
+		Sleep(500);
 	}
 	return 0L;
 }
@@ -572,7 +732,9 @@ int CBurnDlg::EnumDevices()
 			//if (m_DevPort[j].id)
 			if (!m_DevPort[j].id && !IsDeviceRegistered(hub,usb))//此设备未被注册过(id == 0)
 			{
+				m_cs.Lock();
 				m_DevPort[j].valid = 1;//1表示设备已连接，0表示设备已断开
+				m_cs.Unlock();
 				m_DevPort[j].id = j+1;//Id号下标从1开始
 				m_DevPort[j].port = com_port;
 				m_DevPort[j].hub = hub;
@@ -582,7 +744,9 @@ int CBurnDlg::EnumDevices()
 			}
 			else if (m_DevPort[j].id && m_DevPort[j].hub == hub && m_DevPort[j].usb == usb)
 			{
+				m_cs.Lock();
 				m_DevPort[j].valid = 1;
+				m_cs.Unlock();
 				PostMessage(WM_DEVICENOTIFY, 0, j);
 			}
 		}
@@ -608,4 +772,139 @@ BOOL CBurnDlg::IsDeviceRegistered(int hubport, int usbport)
 BOOL CBurnDlg::IsAllowClose()
 {
 	return !m_bIsRunning;
+}
+
+
+BOOL CBurnDlg::GetUKeyState()
+{
+	unsigned long	uiRet = 0;
+	long x = 0, lock = 0, shield = 0;
+
+	//InitiateLock(0);
+	srand(clock());//以系统时间做为随机数种子
+	x = rand() * 65535 + rand() * 32761 + rand() * 256 + rand() * 128;//产生随机数
+	uiRet = Lock32_Function(x, &lock, 0);
+
+	if (0 == uiRet)
+	{
+		FALSE;
+	}
+
+	shield = ShieldPC(x, m_key1, m_key2, m_key3, m_key4);
+
+	if (lock == shield)
+	{
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+
+int CBurnDlg::GetBalance(int nSerNum)
+{
+	int ret = 0;
+	long lVal,nBal,nBalChk;
+
+	ret = ReadLock(315, (void*)&lVal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return 0;
+	}
+	nBal = lVal;
+	ret = ReadLock(317, (void*)&lVal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return 0;
+	}
+	nBalChk = lVal;
+
+	if (nBal != nBalChk)
+	{
+		return 0;
+	}
+	return nBal;
+}
+
+
+string CBurnDlg::ConvertPwd()
+{
+	char szPwd[9] = { 0 }; 
+	char szOp[10] = {"authorize"};
+	for (int i = 0; i < 8; i++)
+	{
+		szPwd[i] = cszPd[i]^szOp[i];
+	}
+	return string(szPwd);
+}
+
+
+int CBurnDlg::Decrease(int nSerNum)
+{
+	int ret = 0;
+	long nBal;
+
+	nBal = GetBalance(nSerNum);
+	if (nBal == 0)
+	{
+		return -1;
+	}
+	nBal--;
+	ret = WriteLock(315, (void*)&nBal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return -1;
+	}
+
+	ret = WriteLock(317, (void*)&nBal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+
+int CBurnDlg::Increase(int nSerNum)
+{
+	int ret = 0;
+	long nBal;
+
+	nBal = GetBalance(nSerNum);
+	if (nBal == 0)
+	{
+		return -1;
+	}
+	nBal++;
+	ret = WriteLock(315, (void*)&nBal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return -1;
+	}
+
+	ret = WriteLock(317, (void*)&nBal, ConvertPwd().c_str(), nSerNum, 1);
+	if (!ret)
+	{
+		return -1;
+	}
+	return 0;
+}
+
+
+void CBurnDlg::OnTimer(UINT_PTR nIDEvent)
+{
+	// TODO: 在此添加消息处理程序代码和/或调用默认值
+	CDialogEx::OnTimer(nIDEvent);
+}
+
+
+BOOL CBurnDlg::PreTranslateMessage(MSG* pMsg)
+{
+	// TODO: 在此添加专用代码和/或调用基类
+
+	if (pMsg->message == WM_KEYDOWN && (pMsg->wParam == VK_RETURN || pMsg->wParam == VK_ESCAPE))
+	{
+		return TRUE;
+	}
+	return CDialogEx::PreTranslateMessage(pMsg);
 }

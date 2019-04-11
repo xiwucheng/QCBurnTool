@@ -17,12 +17,13 @@ public :
 	BOOL IsCmdDone();
 	void Terminate();
 protected:
-	PROCESS_INFORMATION pi;
+	PROCESS_INFORMATION mpi;
 	HANDLE m_hReadPipe, m_hWritePipe, m_hResult, m_hCmd;
 	BOOL m_bWantResult;
 	list<string> m_retStr,m_dupStr;
 	string m_lpCmd;
 	CCriticalSection m_cs;
+	HANDLE m_hSyncEvent;
 private:
 	static UINT CmdThread(LPVOID lpv);
 	static UINT ResultThread(LPVOID lpv);

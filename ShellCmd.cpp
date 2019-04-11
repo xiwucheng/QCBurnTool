@@ -6,6 +6,9 @@ CShellCmd::CShellCmd()
 {
 	m_hCmd = NULL;
 	m_hResult = NULL;
+	m_bWantResult = FALSE;
+	memset(&mpi, 0,sizeof(mpi));
+	m_hSyncEvent = CreateEvent(NULL, 1, 0, 0);
 }
 
 
@@ -23,25 +26,58 @@ CShellCmd::~CShellCmd()
 		CloseHandle(m_hResult);
 		m_hResult = NULL;
 	}
+	m_bWantResult = FALSE;
+	CloseHandle(m_hSyncEvent);
 }
 
 BOOL CShellCmd::IsCmdDone()
 {
 	if (!m_bWantResult)
 	{
-		return (WAIT_OBJECT_0 == WaitForSingleObject(pi.hProcess, 0));
+		if (mpi.hProcess)
+		{
+			return (WAIT_OBJECT_0 == WaitForSingleObject(mpi.hProcess, 0));
+		}
+		return TRUE;
 	}
 	
+	if (!m_hResult)
+	{
+		return TRUE;
+	}
 	return (WAIT_OBJECT_0 == WaitForSingleObject(m_hResult, 0));
 }
 
 void CShellCmd::Terminate()
 {
-	if (WAIT_OBJECT_0 != WaitForSingleObject(pi.hProcess, 0))
+	STARTUPINFOA si = { 0 };
+	SECURITY_ATTRIBUTES sa = { 0 };
+	PROCESS_INFORMATION pi = { 0 };
+	char cmdline[MAX_PATH] = { 0 };
+	si.cb = sizeof STARTUPINFO;
+	si.wShowWindow = SW_HIDE;
+	si.dwFlags = STARTF_USESHOWWINDOW;
+	if (WAIT_OBJECT_0 != WaitForSingleObject(mpi.hProcess, 0))
 	{
-		TerminateThread(pi.hThread, 2);
-		TerminateThread(pi.hProcess, 2);
+		sprintf_s(cmdline, "taskkill /pid %d", mpi.dwProcessId);
+		if (CreateProcessA(0, cmdline, &sa, &sa, 0, 0, 0, 0, &si, &pi))
+		{
+			CloseHandle(pi.hThread);
+			CloseHandle(pi.hProcess);
+		}
 	}
+	if (m_hCmd)
+	{
+		CloseHandle(m_hCmd);
+		m_hCmd = NULL;
+	}
+	if (m_hResult)
+	{
+		CloseHandle(m_hResult);
+		m_hResult = NULL;
+	}
+	m_bWantResult = FALSE;
+	memset(&pi, 0, sizeof(pi));
 }
 
 int CShellCmd::ExecuteCmd(LPSTR lpszCmd, BOOL bReturn)
@@ -52,7 +88,6 @@ int CShellCmd::ExecuteCmd(LPSTR lpszCmd, BOOL bReturn)
 	m_hCmd = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)CmdThread, this, 0, 0);
 	if (m_bWantResult)
 	{
-		Sleep(500);
 		m_hResult = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)ResultThread, this, 0, 0);
 	}
 	return 0;
@@ -74,6 +109,7 @@ UINT CShellCmd::CmdThread(LPVOID lpv)
 	retval = CreatePipe(&p->m_hReadPipe, &p->m_hWritePipe, &sa, 0);
 	if (!retval)
 	{
+		SetEvent(p->m_hSyncEvent);
 		return 1;
 	}
 	si.cb = sizeof STARTUPINFO;
@@ -81,11 +117,15 @@ UINT CShellCmd::CmdThread(LPVOID lpv)
 	si.dwFlags = STARTF_USESHOWWINDOW | STARTF_USESTDHANDLES;
 	si.hStdOutput = si.hStdError = p->m_hWritePipe;
 	p->CleanResult();
-	retval = CreateProcessA(NULL, (LPSTR)p->m_lpCmd.c_str(), &sa, &sa, p->m_bWantResult, 0, NULL, 0, &si, &p->pi);
+	memset(&p->mpi, 0, sizeof(PROCESS_INFORMATION));
+	retval = CreateProcessA(NULL, (LPSTR)p->m_lpCmd.c_str(), &sa, &sa, p->m_bWantResult, 0, NULL, 0, &si, &p->mpi);
 	if (!retval)
 	{
+		SetEvent(p->m_hSyncEvent);
 		return 2;
 	}
+	OutputDebugString(L"INFO2: CmdThread Run Over\n");
+	SetEvent(p->m_hSyncEvent);
 	return 0;
 }
 
@@ -100,11 +140,7 @@ list<string> CShellCmd::GetResult()
 	m_dupStr.clear();
 	m_cs.Lock();
 	copy(m_retStr.begin(), m_retStr.end(), back_inserter(m_dupStr));
-	int size = m_retStr.size()-1;
-	while (size-- > 0)
-	{
-		m_retStr.pop_front();
-	}
+	m_retStr.clear();
 	m_cs.Unlock();
 	return m_dupStr;
 }
@@ -113,61 +149,65 @@ list<string> CShellCmd::GetResult()
 UINT CShellCmd::ResultThread(LPVOID lpv)
 {
 	CShellCmd* p = (CShellCmd*)lpv;
-	char buf[BUFFSIZE] = { 0 }, tmp[1024] = { 0 }, *szToken, *szNextToken;
-	DWORD dwRead,dwWantRd;
-	int len_tmp;
-	while (WAIT_OBJECT_0 != WaitForSingleObject(p->pi.hThread, 1))
+	char buf[BUFFSIZE] = { 0 }, tmp[1024] = { 0 };
+	DWORD dwRead;
+	LONG lWantRd;
+	char c;
+	int idx;
+
+	while (WAIT_OBJECT_0 != WaitForSingleObject(p->m_hSyncEvent, 100));
+	ResetEvent(p->m_hSyncEvent);
+	OutputDebugString(L"INFO2: ResultThread begin...\n");
+
+	while (WAIT_OBJECT_0 != WaitForSingleObject(p->mpi.hThread, 1))
 	{
-		dwWantRd = GetFileSize(p->m_hReadPipe, 0);
+		lWantRd = (LONG)GetFileSize(p->m_hReadPipe, 0);
 		memset(buf, 0, BUFFSIZE);
-		len_tmp = strlen(tmp);
-		if (len_tmp)
+		idx = 0;
+		while (lWantRd-- > 0)
 		{
-			strcpy_s(buf, BUFFSIZE, tmp);
+			ReadFile(p->m_hReadPipe, &c, 1, &dwRead, 0);
+			if (c == '\r' || c == '\n' || c == 0)
+			{
+				if (strlen(buf))
+				{
+					p->m_cs.Lock();
+					p->m_retStr.push_back(buf);
+					OutputDebugStringA(buf);
+					//OutputDebugString(L"\n");
+					p->m_cs.Unlock();
+				}
+				memset(buf, 0, BUFFSIZE);
+				idx = 0;
+				continue;
+			}
+			buf[idx] = c;
+			idx++;
 		}
-		if (dwWantRd != 0 && ReadFile(p->m_hReadPipe, buf+len_tmp, min(BUFFSIZE-len_tmp,dwWantRd), &dwRead, 0))
+	}
+	//进程已结束，再读一次
+	lWantRd = (LONG)GetFileSize(p->m_hReadPipe, 0);
+	memset(buf, 0, BUFFSIZE);
+	idx = 0;
+	while (lWantRd-- > 0)
+	{
+		ReadFile(p->m_hReadPipe, &c, 1, &dwRead, 0);
+		if (c == '\r' || c == '\n' || c == 0)
 		{
-			szToken = strtok_s(buf,"\r\n",&szNextToken);
-			while (szToken && szNextToken)
+			if (strlen(buf))
 			{
 				p->m_cs.Lock();
-				p->m_retStr.push_back(szToken);
-				//OutputDebugString(L"Read Result\n");
+				p->m_retStr.push_back(buf);
+				OutputDebugStringA(buf);
+				//OutputDebugString(L"\n");
 				p->m_cs.Unlock();
-				szToken = strtok_s(NULL, "\r\n",&szNextToken);
 			}
-			if (szToken)
-			{
-				strcpy_s(tmp, 1024, szToken);
-			}
+			memset(buf, 0, BUFFSIZE);
+			idx = 0;
+			continue;
 		}
+		buf[idx] = c;
+		idx++;
 	}
-
-	dwWantRd = GetFileSize(p->m_hReadPipe, 0);
-	memset(buf, 0, BUFFSIZE);
-	len_tmp = strlen(tmp);
-	if (len_tmp)
-	{
-		strcpy_s(buf, BUFFSIZE, tmp);
-	}
-	while (dwWantRd != 0 && ReadFile(p->m_hReadPipe, buf + len_tmp, min(BUFFSIZE - len_tmp, dwWantRd), &dwRead, 0))
-	{
-		szToken = strtok_s(buf, "\r\n", &szNextToken);
-		while (szToken && szNextToken)
-		{
-			p->m_cs.Lock();
-			p->m_retStr.push_back(szToken);
-			p->m_cs.Unlock();
-			szToken = strtok_s(NULL, "\r\n", &szNextToken);
-		}
-		if (szToken)
-		{
-			strcpy_s(tmp, 1024, szToken);
-		}
-		dwWantRd = GetFileSize(p->m_hReadPipe, 0);
-		Sleep(1);
-	}
-	CloseHandle(p->pi.hThread);
-	CloseHandle(p->pi.hProcess);
 	return 0L;
 }
